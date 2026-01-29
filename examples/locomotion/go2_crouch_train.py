@@ -41,15 +41,18 @@ def get_cfgs():
         ],
         "kp": 60.0,
         "kd": 2.0,
-        "termination_if_roll_greater_than": 25,
-        "termination_if_pitch_greater_than": 25,
+        "termination_if_roll_greater_than": 10,
+        "termination_if_pitch_greater_than": 10,
+        "termination_if_z_vel_greater_than":0.7,
+        "termination_if_y_vel_greater_than":0.05,
         "base_init_pos": [0.0, 0.0, 0.35],
         "base_init_quat": [0.0, 0.0, 0.0, 1.0],
-        "episode_length_s": 2.0,
+        "episode_length_s": 10.0,
         "resampling_time_s": 2.0,
         "action_scale": 0.65,
         "simulate_action_latency": True,
         "clip_actions": 100.0,
+        "crouch_speed": 5.0,
     }
 
     obs_cfg = {
@@ -64,13 +67,16 @@ def get_cfgs():
 
     reward_cfg = {
     "reward_scales": {
-    "crouch_target": 10.0,
+    "crouch_target": 50.0,
     "ground_penalty": 10.0,
-    "orientation": 4.0,
-    "no_shake": 2.0,
-    "xy_stability": 2.0,
-    "action_rate": 0.005,
-    "similar_to_default": 0.3,   
+    "orientation": 30.0,
+    "no_shake": 0.0,
+    "xy_stability": 0.0,
+    "action_rate":  -0.05,
+    "similar_to_default": 1.0, 
+    "no_fall": 0.0,
+    "torque_load": 0.0,
+    "crouch_progress":50.0,
     }
     }
 
@@ -96,7 +102,7 @@ def get_train_cfg(exp_name, max_iterations):
             "learning_rate": 0.001,
             "max_grad_norm": 1.0,
             "num_learning_epochs": 5,
-            "num_mini_batches": 8,
+            "num_mini_batches": 4,
             "schedule": "adaptive",
             "use_clipped_value_loss": True,
             "value_loss_coef": 1.0,
@@ -120,8 +126,8 @@ def get_train_cfg(exp_name, max_iterations):
             "run_name": "",
         },
         "runner_class_name": "OnPolicyRunner",
-        "num_steps_per_env": 150,
-        "save_interval": 50,
+        "num_steps_per_env": 48,
+        "save_interval": 100,
         "empirical_normalization": None,
         "seed": 1,
     }

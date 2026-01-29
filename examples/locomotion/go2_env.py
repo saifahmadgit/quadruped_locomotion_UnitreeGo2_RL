@@ -155,6 +155,8 @@ class Go2Env:
         self.reset_buf = self.episode_length_buf > self.max_episode_length
         self.reset_buf |= torch.abs(self.base_euler[:, 1]) > self.env_cfg["termination_if_pitch_greater_than"]
         self.reset_buf |= torch.abs(self.base_euler[:, 0]) > self.env_cfg["termination_if_roll_greater_than"]
+        self.reset_buf |= torch.abs(self.base_lin_vel[:, 2]) > self.env_cfg["termination_if_z_vel_greater_than"]
+        self.reset_buf |= torch.abs(self.base_lin_vel[:, 1]) > self.env_cfg["termination_if_y_vel_greater_than"]
 
         time_out_idx = (self.episode_length_buf > self.max_episode_length).nonzero(as_tuple=False).reshape((-1,))
         self.extras["time_outs"] = torch.zeros_like(self.reset_buf, device=gs.device, dtype=gs.tc_float)
@@ -306,9 +308,7 @@ class Go2Env:
         # Reward upward speed ONLY during push-off (when we're not already high)
         vz = self.base_lin_vel[:, 2]
         z = self.base_pos[:, 2]
-
         gate = (z < 0.50).float()
-
         return gate * torch.clamp(vz, min=0.0)
 
 
@@ -335,22 +335,26 @@ class Go2Env:
         z = self.base_pos[:, 2]
         return (z < 0.25).float()
 
-################## reward written for croutch task
-    ## I am adding another as the another crouthch is working fine for jumping and I do not want to disturb that
+################## reward written for crouch task
+    ## I am adding another as the another crouch is working fine for jumping and I do not want to disturb that
 
     def _reward_crouch_2(self):
         z = self.base_pos[:, 2]
-
         in_band = (z <= 0.30) & (z >= 0.20)
         return in_band.float()
 
     def _reward_ground_penalty(self):
         z = self.base_pos[:, 2]
-        return -(z < 0.20).float()
+        z_safe = 0.15
+        z_min = 0.05
+        x = (z_safe - z) / (z_safe - z_min)
+        x = torch.clamp(x, 0.0, 1.0)
+        return -(x ** 2)
+
 
     def _reward_crouch_target(self):
         z = self.base_pos[:, 2]
-        z_t = 0.20
+        z_t = 0.15
         sigma = 0.03
         return torch.exp(-((z - z_t) / sigma)**2)   
 
@@ -362,6 +366,34 @@ class Go2Env:
     def _reward_similar_to_default(self):
         # Penalize joint poses far away from default pose
         return torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1)
+
+    def _reward_no_fall(self):
+        vz = self.base_lin_vel[:, 2]
+        thresh = 0.5
+        downward = torch.clamp(-vz - thresh, min=0.0)
+        return -(downward ** 2)
+
+    def _reward_y_stability(self):
+        v = self.robot.get_vel()
+        return -(v[:,1]**2)
+
+    def _reward_torque_load(self):
+        tau = self.robot.get_dofs_control_force(self.motors_dof_idx)
+        return -0.001*torch.sum(torch.abs(tau), dim=1)
+
+    def _reward_crouch_progress(self):
+        z = self.base_pos[:, 2]
+        return torch.clamp(0.35 - z, min=0.0)
+
+    def _reward_crouch_speed(self):
+        vz = self.base_lin_vel[:, 2]
+        return -(vz ** 2)
+
+
+
+
+
+    
 
 
 
