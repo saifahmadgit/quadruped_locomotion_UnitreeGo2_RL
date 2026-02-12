@@ -51,8 +51,12 @@ class Go2Env:
             show_viewer=show_viewer,
         )
 
-        # add plain
-        self.scene.add_entity(gs.morphs.URDF(file="urdf/plane/plane.urdf", fixed=True))
+        # ==========================================================
+        # add plain  (UPDATED: keep a handle so we can set friction)
+        # ==========================================================
+        self.ground = self.scene.add_entity(
+            gs.morphs.URDF(file="urdf/plane/plane.urdf", fixed=True)
+        )
 
         # add robot
         self.base_init_pos = torch.tensor(self.env_cfg["base_init_pos"], device=gs.device)
@@ -114,6 +118,30 @@ class Go2Env:
         )
         self.extras = dict()  # extra information for logging
         self.extras["observations"] = dict()
+
+    # ==========================================================
+    # Friction randomization (episode-level)
+    #
+    # NOTE: Genesis "set_friction" is per entity, and in a single
+    # scene used for vectorized envs it effectively applies to
+    # all env instances in that scene. So we sample ONE mu and set
+    # it globally each time reset_idx is called.
+    # ==========================================================
+    def _randomize_friction(self):
+        if "friction_range" not in self.env_cfg:
+            return
+
+        low, high = self.env_cfg["friction_range"]
+        mu = gs_rand_float(low, high, (1,), gs.device)
+        mu_val = float(mu.item())
+
+        # Apply to both surfaces so contact isn't dominated by the other.
+        self.ground.set_friction(mu_val)
+        self.robot.set_friction(mu_val)
+
+        # Optional: log it
+        self.extras.setdefault("domain_randomization", {})
+        self.extras["domain_randomization"]["friction"] = mu_val
 
     def _resample_commands(self, envs_idx):
         self.commands[envs_idx, 0] = gs_rand_float(*self.command_cfg["lin_vel_x_range"], (len(envs_idx),), gs.device)
@@ -202,6 +230,11 @@ class Go2Env:
         if len(envs_idx) == 0:
             return
 
+        # ==========================================================
+        # Randomize friction at the start of an episode
+        # ==========================================================
+        self._randomize_friction()
+
         # reset dofs
         self.dof_pos[envs_idx] = self.default_dof_pos
         self.dof_vel[envs_idx] = 0.0
@@ -268,41 +301,10 @@ class Go2Env:
     def _reward_base_height(self):
         # Penalize base height away from target
         return torch.square(self.base_pos[:, 2] - self.reward_cfg["base_height_target"])
-    
-    # def _reward_jump_impulse(self):
-    #     # Reward upward speed ONLY during push-off (when we're not already high)
-    #     vz = self.base_lin_vel[:, 2]
-    #     z = self.base_pos[:, 2]
 
-    #     # gate: only when near ground / crouch region (adjust 0.42-0.45 depending on your init height)
-    #     gate = (z < 0.42).float()
+    ######################################## helper function
 
-    #     return gate * torch.clamp(vz, min=0.0)
-
-    # def _reward_no_shake(self):
-    #     return torch.sum(torch.square(self.base_ang_vel), dim=1)
-
-
-    # def _reward_upright(self):
-    #     # projected_gravity[:,2] is ~1 when upright, ~0 when sideways
-    #     return torch.square(self.projected_gravity[:, 2])
-
-    # def _reward_jump_apex(self):
-    #     target = self.reward_cfg["jump_apex_height"]
-    #     sigma = self.reward_cfg.get("jump_apex_sigma", 0.05)
-    #     z = self.base_pos[:, 2]
-    #     return torch.exp(-torch.square((z - target) / sigma))
-
-    # def _reward_no_drift(self):
-    #     return -torch.sum(torch.square(self.base_lin_vel[:, :2]), dim=1)
-
-
-######################################## helper function
-
-
-
-
-################## reward written for jump task
+    ################## reward written for jump task
 
     def _reward_jump_impulse(self):
         # Reward upward speed ONLY during push-off (when we're not already high)
@@ -311,31 +313,27 @@ class Go2Env:
         gate = (z < 0.50).float()
         return gate * torch.clamp(vz, min=0.0)
 
-
     def _reward_jump_apex(self):
         target = self.reward_cfg["jump_apex_height"]
         sigma = self.reward_cfg.get("jump_apex_sigma", 0.05)
         z = self.base_pos[:, 2]
-        return torch.exp(-torch.square((z - target) / sigma))    
-
-    
+        return torch.exp(-torch.square((z - target) / sigma))
 
     def _reward_xy_stability(self):
         v = self.robot.get_vel()
-        return -(v[:,0]**2 + v[:,1]**2)
-
+        return -(v[:, 0] ** 2 + v[:, 1] ** 2)
 
     def _reward_orientation(self):
         return -self.projected_gravity[:, 2]
 
     def _reward_no_shake(self):
-        return -torch.sum(self.base_ang_vel**2, dim=1)/1.0
+        return -torch.sum(self.base_ang_vel ** 2, dim=1) / 1.0
 
     def _reward_crouch(self):
         z = self.base_pos[:, 2]
         return (z < 0.25).float()
 
-################## reward written for crouch task
+    ################## reward written for crouch task
     ## I am adding another as the another crouch is working fine for jumping and I do not want to disturb that
 
     def _reward_crouch_2(self):
@@ -351,17 +349,15 @@ class Go2Env:
         x = torch.clamp(x, 0.0, 1.0)
         return -(x ** 2)
 
-
     def _reward_crouch_target(self):
         z = self.base_pos[:, 2]
         z_t = 0.15
         sigma = 0.03
-        return torch.exp(-((z - z_t) / sigma)**2)   
+        return torch.exp(-((z - z_t) / sigma) ** 2)
 
     def _reward_action_rate(self):
         # Penalize changes in actions
         return torch.sum(torch.square(self.last_actions - self.actions), dim=1)
-
 
     def _reward_similar_to_default(self):
         # Penalize joint poses far away from default pose
@@ -375,11 +371,11 @@ class Go2Env:
 
     def _reward_y_stability(self):
         v = self.robot.get_vel()
-        return -(v[:,1]**2)
+        return -(v[:, 1] ** 2)
 
     def _reward_torque_load(self):
         tau = self.robot.get_dofs_control_force(self.motors_dof_idx)
-        return -0.001*torch.sum(torch.abs(tau), dim=1)
+        return -0.001 * torch.sum(torch.abs(tau), dim=1)
 
     def _reward_crouch_progress(self):
         z = self.base_pos[:, 2]
@@ -388,28 +384,3 @@ class Go2Env:
     def _reward_crouch_speed(self):
         vz = self.base_lin_vel[:, 2]
         return -(vz ** 2)
-
-
-
-
-
-    
-
-
-
-
-
-
-
-
-
-    
-
-
-
-
-
-
-
-
-    

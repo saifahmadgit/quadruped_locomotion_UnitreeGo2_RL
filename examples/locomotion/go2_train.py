@@ -104,6 +104,9 @@ def get_cfgs():
         # termination
         "termination_if_roll_greater_than": 10,  # degree
         "termination_if_pitch_greater_than": 10,
+        "termination_if_z_vel_greater_than": 100.0,
+        "termination_if_y_vel_greater_than": 100.0,
+
         # base pose
         "base_init_pos": [0.0, 0.0, 0.42],
         "base_init_quat": [1.0, 0.0, 0.0, 0.0],
@@ -137,7 +140,7 @@ def get_cfgs():
     }
     command_cfg = {
         "num_commands": 3,
-        "lin_vel_x_range": [0.5, 0.5],
+        "lin_vel_x_range": [0.3, 1.0],
         "lin_vel_y_range": [0, 0],
         "ang_vel_range": [0, 0],
     }

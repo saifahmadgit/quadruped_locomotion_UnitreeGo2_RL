@@ -1,9 +1,14 @@
+# =========================
+# File: go2_train_test3.py
+# =========================
+
 import argparse
 import os
 import pickle
 import shutil
 from importlib import metadata
 
+# -------- rsl-rl version guard --------
 try:
     try:
         if metadata.version("rsl-rl"):
@@ -13,11 +18,11 @@ try:
             raise ImportError
 except (metadata.PackageNotFoundError, ImportError) as e:
     raise ImportError("Please uninstall 'rsl_rl' and install 'rsl-rl-lib==2.2.4'.") from e
-from rsl_rl.runners import OnPolicyRunner
 
+from rsl_rl.runners import OnPolicyRunner
 import genesis as gs
 
-from go2_env_DR import Go2Env
+from go2_env_test3 import Go2Env
 
 
 def get_train_cfg(exp_name, max_iterations):
@@ -58,20 +63,75 @@ def get_train_cfg(exp_name, max_iterations):
         },
         "runner_class_name": "OnPolicyRunner",
         "num_steps_per_env": 24,
-        "save_interval": 100,
+        "save_interval": 1000,
         "empirical_normalization": None,
         "seed": 1,
     }
-
     return train_cfg_dict
 
 
 def get_cfgs():
+    # =================================================================
+    #              DOMAIN RANDOMISATION — TRAINING CONFIG
+    # =================================================================
+
+    # -------------------- 1. SURFACE FRICTION -----------------------
+    friction_enable = True
+    friction_range = [0.4, 1.2]
+
+    # -------------------- 2. PD GAIN RANDOMISATION ------------------
+    kp_kd_enable = True
+    kp_nominal = 60.0
+    kd_nominal = 2.0
+    kp_range = [50.0, 80.0]
+    kd_range = [2.0, 5.0]
+
+    # -------------------- 3. OBSERVATION NOISE ----------------------
+    obs_noise_enable = True
+    obs_noise_level = 0.15
+    obs_noise = {
+        "ang_vel": 0.2,
+        "gravity": 0.05,
+        "dof_pos": 0.02,
+        "dof_vel": 1.0,
+    }
+
+    # -------------------- 3b. ACTION NOISE --------------------------
+    action_noise_enable = True
+    action_noise_std = 0.3  # rad
+
+    # -------------------- 4. EXTERNAL PUSHES ------------------------
+    push_enable = True
+    push_interval_s = 2.0
+    push_force_range = [-70.0, 70.0]  # N (x, y sampled independently)
+
+    # (optional, used by the new push impl; safe defaults)
+    push_prob = 1.0
+    push_duration_s = 0.15
+    push_z_scale = 0.0
+    push_direction_mode = "random"
+
+    # -------------------- 5. INITIAL POSE PERTURBATION --------------
+    init_pose_enable = True
+    init_pos_z_range = [0.42, 0.42]
+    init_euler_range = [0.0, 0.0]
+
+    # -------------------- 6. MASS & COM SHIFT -----------------------
+    mass_enable = False
+    mass_shift_range = [-0.5, 0.5]
+    com_shift_range = [-0.02, 0.02]
+
+    simulate_action_latency = True
+
     env_cfg = {
         "num_actions": 12,
 
-        # joint/link names
-        "default_joint_angles": {
+        "kp": kp_nominal,
+        "kd": kd_nominal,
+
+        "simulate_action_latency": simulate_action_latency,
+
+        "default_joint_angles": {  # [rad]
             "FL_hip_joint": 0.0,
             "FR_hip_joint": 0.0,
             "RL_hip_joint": 0.0,
@@ -85,49 +145,64 @@ def get_cfgs():
             "RL_calf_joint": -1.5,
             "RR_calf_joint": -1.5,
         },
-
         "joint_names": [
-            "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
-            "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
-            "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint",
-            "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
+            "FR_hip_joint",
+            "FR_thigh_joint",
+            "FR_calf_joint",
+            "FL_hip_joint",
+            "FL_thigh_joint",
+            "FL_calf_joint",
+            "RR_hip_joint",
+            "RR_thigh_joint",
+            "RR_calf_joint",
+            "RL_hip_joint",
+            "RL_thigh_joint",
+            "RL_calf_joint",
         ],
 
-        # PD nominal
-        "kp": 60.0,
-        "kd": 2.0,
-
-        # -------- Domain Randomization --------
-        "friction_range": (0.4, 1.2),
-
-        "kp_scale_range": (0.75, 1.25),
-        "kd_scale_range": (0.75, 1.25),
-
-        "push_enable": True,
-        "push_interval_s": 1.0,
-        "push_prob": 0.0,
-        "push_force_range": (0.0, 0.0),
-        "push_z_scale": 0.0,
-        "push_duration_s": 0.15,
-        "push_direction_mode": "random",
-        # -------------------------------------
-
-        # termination
         "termination_if_roll_greater_than": 10,
         "termination_if_pitch_greater_than": 10,
         "termination_if_z_vel_greater_than": 100.0,
         "termination_if_y_vel_greater_than": 100.0,
 
-        # base pose
         "base_init_pos": [0.0, 0.0, 0.42],
         "base_init_quat": [1.0, 0.0, 0.0, 0.0],
 
         "episode_length_s": 20.0,
         "resampling_time_s": 4.0,
         "action_scale": 0.25,
-        "simulate_action_latency": True,
         "clip_actions": 100.0,
     }
+
+    if friction_enable:
+        env_cfg["friction_range"] = friction_range
+
+    if kp_kd_enable:
+        env_cfg["kp_range"] = kp_range
+        env_cfg["kd_range"] = kd_range
+
+    if obs_noise_enable:
+        env_cfg["obs_noise"] = obs_noise
+        env_cfg["obs_noise_level"] = obs_noise_level
+
+    if action_noise_enable:
+        env_cfg["action_noise_std"] = action_noise_std
+
+    if push_enable:
+        env_cfg["push_force_range"] = push_force_range
+        env_cfg["push_interval_s"] = push_interval_s
+        env_cfg["push_prob"] = push_prob
+        env_cfg["push_duration_s"] = push_duration_s
+        env_cfg["push_z_scale"] = push_z_scale
+        env_cfg["push_direction_mode"] = push_direction_mode
+
+    if init_pose_enable:
+        env_cfg["init_pos_z_range"] = init_pos_z_range
+        env_cfg["init_euler_range"] = init_euler_range
+
+    if mass_enable:
+        env_cfg["mass_shift_range"] = mass_shift_range
+        env_cfg["com_shift_range"] = com_shift_range
 
     obs_cfg = {
         "num_obs": 45,
@@ -138,6 +213,7 @@ def get_cfgs():
             "dof_vel": 0.05,
         },
     }
+
     reward_cfg = {
         "tracking_sigma": 0.25,
         "base_height_target": 0.3,
@@ -151,9 +227,10 @@ def get_cfgs():
             "similar_to_default": -0.1,
         },
     }
+
     command_cfg = {
         "num_commands": 3,
-        "lin_vel_x_range": [0.3, 0.8],
+        "lin_vel_x_range": [0.3, 1.0],
         "lin_vel_y_range": [0, 0],
         "ang_vel_range": [0, 0],
     }
@@ -184,18 +261,16 @@ def main():
     )
 
     env = Go2Env(
-        num_envs=args.num_envs, env_cfg=env_cfg, obs_cfg=obs_cfg, reward_cfg=reward_cfg, command_cfg=command_cfg
+        num_envs=args.num_envs,
+        env_cfg=env_cfg,
+        obs_cfg=obs_cfg,
+        reward_cfg=reward_cfg,
+        command_cfg=command_cfg,
     )
 
     runner = OnPolicyRunner(env, train_cfg, log_dir, device=gs.device)
-
     runner.learn(num_learning_iterations=args.max_iterations, init_at_random_ep_len=True)
 
 
 if __name__ == "__main__":
     main()
-
-"""
-# training
-python examples/locomotion/go2_train.py
-"""

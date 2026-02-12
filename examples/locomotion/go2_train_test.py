@@ -13,11 +13,12 @@ try:
             raise ImportError
 except (metadata.PackageNotFoundError, ImportError) as e:
     raise ImportError("Please uninstall 'rsl_rl' and install 'rsl-rl-lib==2.2.4'.") from e
+
 from rsl_rl.runners import OnPolicyRunner
 
 import genesis as gs
 
-from go2_env_DR import Go2Env
+from go2_env_test import Go2Env
 
 
 def get_train_cfg(exp_name, max_iterations):
@@ -58,7 +59,7 @@ def get_train_cfg(exp_name, max_iterations):
         },
         "runner_class_name": "OnPolicyRunner",
         "num_steps_per_env": 24,
-        "save_interval": 100,
+        "save_interval": 1000,
         "empirical_normalization": None,
         "seed": 1,
     }
@@ -70,8 +71,13 @@ def get_cfgs():
     env_cfg = {
         "num_actions": 12,
 
+        # -------------------------------------------------
+        # Domain Randomization
+        # -------------------------------------------------
+        "friction_range": [0.4, 1.2],
+
         # joint/link names
-        "default_joint_angles": {
+        "default_joint_angles": {  # [rad]
             "FL_hip_joint": 0.0,
             "FR_hip_joint": 0.0,
             "RL_hip_joint": 0.0,
@@ -85,35 +91,25 @@ def get_cfgs():
             "RL_calf_joint": -1.5,
             "RR_calf_joint": -1.5,
         },
-
         "joint_names": [
-            "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
-            "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
-            "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint",
-            "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
+            "FR_hip_joint",
+            "FR_thigh_joint",
+            "FR_calf_joint",
+            "FL_hip_joint",
+            "FL_thigh_joint",
+            "FL_calf_joint",
+            "RR_hip_joint",
+            "RR_thigh_joint",
+            "RR_calf_joint",
+            "RL_hip_joint",
+            "RL_thigh_joint",
+            "RL_calf_joint",
         ],
-
-        # PD nominal
-        "kp": 60.0,
-        "kd": 2.0,
-
-        # -------- Domain Randomization --------
-        "friction_range": (0.4, 1.2),
-
-        "kp_scale_range": (0.75, 1.25),
-        "kd_scale_range": (0.75, 1.25),
-
-        "push_enable": True,
-        "push_interval_s": 1.0,
-        "push_prob": 0.0,
-        "push_force_range": (0.0, 0.0),
-        "push_z_scale": 0.0,
-        "push_duration_s": 0.15,
-        "push_direction_mode": "random",
-        # -------------------------------------
-
+        # PD
+        "kp": 20.0,
+        "kd": 0.5,
         # termination
-        "termination_if_roll_greater_than": 10,
+        "termination_if_roll_greater_than": 10,  # degree
         "termination_if_pitch_greater_than": 10,
         "termination_if_z_vel_greater_than": 100.0,
         "termination_if_y_vel_greater_than": 100.0,
@@ -121,14 +117,12 @@ def get_cfgs():
         # base pose
         "base_init_pos": [0.0, 0.0, 0.42],
         "base_init_quat": [1.0, 0.0, 0.0, 0.0],
-
         "episode_length_s": 20.0,
         "resampling_time_s": 4.0,
         "action_scale": 0.25,
         "simulate_action_latency": True,
         "clip_actions": 100.0,
     }
-
     obs_cfg = {
         "num_obs": 45,
         "obs_scales": {
@@ -153,7 +147,7 @@ def get_cfgs():
     }
     command_cfg = {
         "num_commands": 3,
-        "lin_vel_x_range": [0.3, 0.8],
+        "lin_vel_x_range": [0.3, 1.0],
         "lin_vel_y_range": [0, 0],
         "ang_vel_range": [0, 0],
     }

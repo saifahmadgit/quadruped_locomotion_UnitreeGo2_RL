@@ -17,7 +17,7 @@ except (metadata.PackageNotFoundError, ImportError) as e:
 from rsl_rl.runners import OnPolicyRunner
 import genesis as gs
 
-from go2_env_DR_curriculum.py import Go2Env
+from go2_env_DR_curriculum import Go2Env
 
 
 def get_train_cfg(exp_name, max_iterations):
@@ -58,7 +58,7 @@ def get_train_cfg(exp_name, max_iterations):
         },
         "runner_class_name": "OnPolicyRunner",
         "num_steps_per_env": 24,
-        "save_interval": 100,
+        "save_interval": 5000,
         "empirical_normalization": None,
         "seed": 1,
     }
@@ -112,7 +112,7 @@ def get_cfgs():
         {
             "lin_vel_x_range": [0.2, 0.8],
             "lin_vel_y_range": [0.0, 0.0],
-            "ang_vel_range": [-0.3, 0.3],
+            "ang_vel_range": [0.0, 0.0],
             "friction_range": (0.7, 1.3),
             "kp_scale_range": (0.85, 1.15),
             "kd_scale_range": (0.85, 1.15),
@@ -130,7 +130,7 @@ def get_cfgs():
         {
             "lin_vel_x_range": [0.1, 1.2],
             "lin_vel_y_range": [0.0, 0.0],
-            "ang_vel_range": [-0.8, 0.8],
+            "ang_vel_range": [0.0, 0.0],
             "friction_range": (0.5, 1.5),
             "kp_scale_range": (0.8, 1.2),
             "kd_scale_range": (0.8, 1.2),
@@ -147,8 +147,8 @@ def get_cfgs():
         {
             "lin_vel_x_range": [0.1, 1.5],
             "lin_vel_y_range": [0.0, 0.0],
-            "ang_vel_range": [-1.0, 1.0],
-            "friction_range": (0.4, 1.6),
+            "ang_vel_range": [0.0, 0.0],
+            "friction_range": (0.4, 1.2),
             "kp_scale_range": (0.75, 1.25),
             "kd_scale_range": (0.75, 1.25),
             "push_enable": True,
